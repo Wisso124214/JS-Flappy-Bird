@@ -1,14 +1,85 @@
 const RAD = Math.PI / 180;
-const scrn = document.getElementById("canvas");
-const sctx = scrn.getContext("2d");
+const scrn = document.getElementById('canvas');
+const sctx = scrn.getContext('2d');
+scrn.height = globalThis.innerHeight * 0.99;
+scrn.width = globalThis.innerHeight * 0.67;
 scrn.tabIndex = 1;
-scrn.addEventListener("click", () => {
+
+/**
+ * Listo:
+  * Diseño responsive
+  * Icono
+  * Añadir autofocus
+  * Matar cuando alcance el tope arriba
+  * Añadir speedGame
+  * Arreglar cargar piso y fondo
+  * Altura del salto (manual)
+  * Cantidad de reducción (manual)
+  * Añadir pausa
+ *
+ * Tiempo para llegar al máximo (manual)
+
+ * Añadir dificultad
+ * Aumentar velocidad
+ */
+
+const config = {
+  // difficulty: 'easy',
+  // timeToDecreaseSpace: 1000,
+  // speedBird: 100,
+  // yBetweenPipes: 10,
+  
+  xBetweenPipes: 2,
+  speedGame: 35,      //0 - 100. Default is 35
+  gravity: 0.2,     //0.125 as default
+  jumpBird: 5,        //3.6 as default
+};
+
+// setInterval(() => {
+//   config.s
+// }, 1000)
+
+const state = {
+  curr: 0,
+  getReady: 0,
+  Play: 1,
+  gameOver: 2,
+};
+
+let isGamePaused = false;
+let isPageActive = false;
+
+globalThis.onmousedown = (e) => {
+  activePage(e);
+  handleClick();
+};
+globalThis.onkeydown = (e) => {
+  activePage(e);
+};
+
+const activePage = (e) => {
+  scrn.focus();
+
+  if (e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') {
+    handleClick();
+  } else if (e.key === 'p' || e.key === 'P') {
+    state.curr = state.getReady;
+    isGamePaused = true;
+  }
+
+  if (!isPageActive) {
+    isPageActive = true;
+  }
+};
+
+const handleClick = () => {
   switch (state.curr) {
     case state.getReady:
       state.curr = state.Play;
       SFX.start.play();
       break;
     case state.Play:
+      isGamePaused = false;
       bird.flap();
       break;
     case state.gameOver:
@@ -20,39 +91,10 @@ scrn.addEventListener("click", () => {
       SFX.played = false;
       break;
   }
-});
-
-scrn.onkeydown = function keyDown(e) {
-  if (e.keyCode == 32 || e.keyCode == 87 || e.keyCode == 38) {
-    // Space Key or W key or arrow up
-    switch (state.curr) {
-      case state.getReady:
-        state.curr = state.Play;
-        SFX.start.play();
-        break;
-      case state.Play:
-        bird.flap();
-        break;
-      case state.gameOver:
-        state.curr = state.getReady;
-        bird.speed = 0;
-        bird.y = 100;
-        pipe.pipes = [];
-        UI.score.curr = 0;
-        SFX.played = false;
-        break;
-    }
-  }
 };
 
 let frames = 0;
-let dx = 2;
-const state = {
-  curr: 0,
-  getReady: 0,
-  Play: 1,
-  gameOver: 2,
-};
+let dx = config.xBetweenPipes;
 const SFX = {
   start: new Audio(),
   flap: new Audio(),
@@ -67,7 +109,9 @@ const gnd = {
   y: 0,
   draw: function () {
     this.y = parseFloat(scrn.height - this.sprite.height);
-    sctx.drawImage(this.sprite, this.x, this.y);
+    for (let x = 0; x < scrn.width; x += this.sprite.width) {
+      sctx.drawImage(this.sprite, x, this.y);
+    }
   },
   update: function () {
     if (state.curr != state.Play) return;
@@ -81,7 +125,9 @@ const bg = {
   y: 0,
   draw: function () {
     y = parseFloat(scrn.height - this.sprite.height);
-    sctx.drawImage(this.sprite, this.x, y);
+    for (let x = 0; x < scrn.width; x += this.sprite.width) {
+      sctx.drawImage(this.sprite, x, y);
+    }
   },
 };
 const pipe = {
@@ -130,8 +176,8 @@ const bird = {
   x: 50,
   y: 100,
   speed: 0,
-  gravity: 0.125,
-  thrust: 3.6,
+  gravity: config.gravity,
+  thrust: config.jumpBird,
   frame: 0,
   draw: function () {
     let h = this.animations[this.frame].sprite.height;
@@ -155,7 +201,8 @@ const bird = {
         this.y += this.speed;
         this.setRotation();
         this.speed += this.gravity;
-        if (this.y + r >= gnd.y || this.collisioned()) {
+
+        if (this.y + r >= gnd.y || this.collisioned() || this.y <= 0) {
           state.curr = state.gameOver;
         }
 
@@ -239,6 +286,12 @@ const UI = {
           this.y + this.getReady.sprite.height - this.tap[0].sprite.height;
         sctx.drawImage(this.getReady.sprite, this.x, this.y);
         sctx.drawImage(this.tap[this.frame].sprite, this.tx, this.ty);
+
+        if (isGamePaused) {
+          sctx.strokeStyle = 'white';
+          sctx.font = '40px Squada One';
+          sctx.strokeText('PAUSED', scrn.width / 2 - 50, scrn.height / 3 - 20);
+        }
         break;
       case state.gameOver:
         this.y = parseFloat(scrn.height - this.gameOver.sprite.height) / 2;
@@ -253,25 +306,25 @@ const UI = {
     this.drawScore();
   },
   drawScore: function () {
-    sctx.fillStyle = "#FFFFFF";
-    sctx.strokeStyle = "#000000";
+    sctx.fillStyle = '#FFFFFF';
+    sctx.strokeStyle = '#000000';
     switch (state.curr) {
       case state.Play:
-        sctx.lineWidth = "2";
-        sctx.font = "35px Squada One";
+        sctx.lineWidth = '2';
+        sctx.font = '35px Squada One';
         sctx.fillText(this.score.curr, scrn.width / 2 - 5, 50);
         sctx.strokeText(this.score.curr, scrn.width / 2 - 5, 50);
         break;
       case state.gameOver:
-        sctx.lineWidth = "2";
-        sctx.font = "40px Squada One";
+        sctx.lineWidth = '2';
+        sctx.font = '40px Squada One';
         let sc = `SCORE :     ${this.score.curr}`;
         try {
           this.score.best = Math.max(
             this.score.curr,
-            localStorage.getItem("best")
+            localStorage.getItem('best')
           );
-          localStorage.setItem("best", this.score.best);
+          localStorage.setItem('best', this.score.best);
           let bs = `BEST  :     ${this.score.best}`;
           sctx.fillText(sc, scrn.width / 2 - 80, scrn.height / 2 + 0);
           sctx.strokeText(sc, scrn.width / 2 - 80, scrn.height / 2 + 0);
@@ -292,23 +345,23 @@ const UI = {
   },
 };
 
-gnd.sprite.src = "img/ground.png";
-bg.sprite.src = "img/BG.png";
-pipe.top.sprite.src = "img/toppipe.png";
-pipe.bot.sprite.src = "img/botpipe.png";
-UI.gameOver.sprite.src = "img/go.png";
-UI.getReady.sprite.src = "img/getready.png";
-UI.tap[0].sprite.src = "img/tap/t0.png";
-UI.tap[1].sprite.src = "img/tap/t1.png";
-bird.animations[0].sprite.src = "img/bird/b0.png";
-bird.animations[1].sprite.src = "img/bird/b1.png";
-bird.animations[2].sprite.src = "img/bird/b2.png";
-bird.animations[3].sprite.src = "img/bird/b0.png";
-SFX.start.src = "sfx/start.wav";
-SFX.flap.src = "sfx/flap.wav";
-SFX.score.src = "sfx/score.wav";
-SFX.hit.src = "sfx/hit.wav";
-SFX.die.src = "sfx/die.wav";
+gnd.sprite.src = 'img/ground.png';
+bg.sprite.src = 'img/BG.png';
+pipe.top.sprite.src = 'img/toppipe.png';
+pipe.bot.sprite.src = 'img/botpipe.png';
+UI.gameOver.sprite.src = 'img/go.png';
+UI.getReady.sprite.src = 'img/getready.png';
+UI.tap[0].sprite.src = 'img/tap/t0.png';
+UI.tap[1].sprite.src = 'img/tap/t1.png';
+bird.animations[0].sprite.src = 'img/bird/b0.png';
+bird.animations[1].sprite.src = 'img/bird/b1.png';
+bird.animations[2].sprite.src = 'img/bird/b2.png';
+bird.animations[3].sprite.src = 'img/bird/b0.png';
+SFX.start.src = 'sfx/start.wav';
+SFX.flap.src = 'sfx/flap.wav';
+SFX.score.src = 'sfx/score.wav';
+SFX.hit.src = 'sfx/hit.wav';
+SFX.die.src = 'sfx/die.wav';
 
 function gameLoop() {
   update();
@@ -324,7 +377,7 @@ function update() {
 }
 
 function draw() {
-  sctx.fillStyle = "#30c0df";
+  sctx.fillStyle = '#30c0df';
   sctx.fillRect(0, 0, scrn.width, scrn.height);
   bg.draw();
   pipe.draw();
@@ -334,4 +387,9 @@ function draw() {
   UI.draw();
 }
 
-setInterval(gameLoop, 20);
+const ms =
+  config.speedGame < 0 || config.speedGame > 100
+    ? 20
+    : -0.29 * config.speedGame + 30;
+
+setInterval(gameLoop, ms);
